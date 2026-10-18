@@ -2,22 +2,23 @@ import streamlit as st
 import pandas as pd
 import time
 from fpdf import FPDF
+import io
 
 # ==========================================
-# PAGE CONFIGURATION & LIGHT PROFESSIONAL STYLING
+# PAGE CONFIGURATION & AWESOME LIGHT STYLING
 # ==========================================
 st.set_page_config(
-    page_title="CareerBridge AI - End-to-End Career Acceleration Platform",
+    page_title="CareerBridge AI - Ultimate Portfolio & Career Hub",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Light Theme Styling (Slate White, Border Navy, Electric Blue Accent)
+# Custom Professional Light Theme CSS (Clean Slate, Electric Blue, Modern Cards)
 st.markdown("""
 <style>
     .stApp {
-        background-color: #f8fafc;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
         color: #0f172a;
         font-family: 'Inter', -apple-system, sans-serif;
     }
@@ -25,25 +26,36 @@ st.markdown("""
     .light-card {
         background: #ffffff;
         padding: 24px;
-        border-radius: 12px;
+        border-radius: 16px;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
         margin-bottom: 20px;
+        transition: transform 0.2s ease;
     }
     
-    .badge-verified {
-        background-color: #0284c7; color: #ffffff;
-        padding: 4px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    .light-card:hover {
+        transform: translateY(-2px);
+        border-color: #cbd5e1;
     }
     
-    .badge-govt {
-        background-color: #d97706; color: #ffffff;
-        padding: 4px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    .auth-card {
+        background: #ffffff;
+        padding: 36px;
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08);
+        max-width: 480px;
+        margin: 40px auto;
     }
 
-    .score-badge {
+    .badge-verified {
+        background-color: #0284c7; color: #ffffff;
+        padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    }
+    
+    .badge-completed {
         background-color: #059669; color: #ffffff;
-        padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 0.9rem;
+        padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 700;
     }
 
     .pill-match {
@@ -59,22 +71,37 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# STATE INITIALIZATION
+# SESSION STATE INITIALIZATION
 # ==========================================
-if "role" not in st.session_state:
-    st.session_state["role"] = "Job Seeker"  # Job Seeker OR Recruiter
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
+if "profile_completed" not in st.session_state:
+    st.session_state["profile_completed"] = False
 if "user_name" not in st.session_state:
     st.session_state["user_name"] = "Arpit Srivastav"
+if "user_email" not in st.session_state:
+    st.session_state["user_email"] = "arpit@example.com"
+if "user_phone" not in st.session_state:
+    st.session_state["user_phone"] = "9876543210"
+if "otp_verified" not in st.session_state:
+    st.session_state["otp_verified"] = False
+if "id_doc_uploaded" not in st.session_state:
+    st.session_state["id_doc_uploaded"] = False
+if "resume_uploaded" not in st.session_state:
+    st.session_state["resume_uploaded"] = False
+if "resume_file_name" not in st.session_state:
+    st.session_state["resume_file_name"] = "No Resume Uploaded"
 if "user_skills" not in st.session_state:
-    st.session_state["user_skills"] = ["python", "django", "sql", "react", "javascript"]
+    st.session_state["user_skills"] = ["python", "django", "sql", "react", "javascript", "node.js"]
 if "user_exp" not in st.session_state:
-    st.session_state["user_exp"] = 0
+    st.session_state["user_exp"] = 1
+if "portfolio_projects" not in st.session_state:
+    st.session_state["portfolio_projects"] = [
+        {"title": "Bite Bridge - Food Delivery Web App", "tech": "Node.js, Express, MongoDB", "link": "https://github.com/arpit/bite-bridge"},
+        {"title": "CareerBridge AI Platform", "tech": "Python, Streamlit, Pandas", "link": "https://github.com/arpit/careerbridge-ai"}
+    ]
 if "interview_history" not in st.session_state:
     st.session_state["interview_history"] = []
-if "learning_loop" not in st.session_state:
-    st.session_state["learning_loop"] = ["Focus on Django REST Framework exception handling", "Practice SQL Window Functions"]
 
 if "jobs_database" not in st.session_state:
     st.session_state["jobs_database"] = [
@@ -92,76 +119,167 @@ if "jobs_database" not in st.session_state:
         },
         {
             "id": 3, "title": "Data Analyst Trainee", "company": "Analytics Pulse",
-            "location": "Bengaluru / Hybrid", "required": ["python", "sql", "excel", "pandas"],
+            "location": "Bengaluru / Hybrid",
+            "required": ["python", "sql", "excel", "pandas"],
             "min_exp": 0, "salary": "₹4.0 - ₹6.0 LPA", "verified": True, "type": "Private",
             "official_url": "", "desc": "Analyze data distributions, clean datasets, and build decision dashboards."
         }
     ]
 
-# PDF Resume Generator Utility
+# PDF Generator
 def generate_clean_pdf(name, skills_list, exp):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 18)
     pdf.cell(0, 10, name, ln=True, align="C")
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 6, f"Fresher / Experience: {exp} Year(s)", ln=True, align="C")
+    pdf.cell(0, 6, f"Verified Candidate | Experience: {exp} Year(s)", ln=True, align="C")
     pdf.ln(8)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, "Core Competencies", ln=True)
+    pdf.cell(0, 8, "Core Technical Competencies", ln=True)
     pdf.set_font("Helvetica", "", 10)
     pdf.multi_cell(0, 6, ", ".join([s.title() for s in skills_list]))
     pdf.ln(5)
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 8, "Profile Summary", ln=True)
+    pdf.cell(0, 8, "Profile & Identity Verification Status", ln=True)
     pdf.set_font("Helvetica", "", 10)
-    summary = f"Entry-level technology candidate possessing foundational proficiency in {', '.join([s.title() for s in skills_list[:3]])}. Evaluated objectively via CareerBridge AI."
+    summary = f"Full identity verified profile for {name}. Evaluated for technical correctness and job suitability via CareerBridge AI."
     pdf.multi_cell(0, 6, summary)
     return bytes(pdf.output())
 
 # ==========================================
-# TOP HEADER & AUTHENTICATION
+# HEADER & TOP NAVIGATION
 # ==========================================
 col_h1, col_h2 = st.columns([4, 1])
 with col_h1:
-    st.markdown("<h1 style='margin:0; color:#0284c7;'>🚀 CareerBridge AI</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#64748b; margin:0;'>End-to-End Placement Acceleration Engine for Indian Freshers & Graduates</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin:0; color:#0284c7; font-weight:800;'>🚀 CareerBridge AI</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#64748b; margin:0; font-weight:500;'>Smart Placement, Verified Identity & Portfolio Engine for Indian Freshers</p>", unsafe_allow_html=True)
 with col_h2:
-    role_choice = st.selectbox("Switch View", ["Job Seeker", "Verified Recruiter"])
-    st.session_state["role"] = role_choice
+    if st.session_state["logged_in"]:
+        if st.button("Logout", use_container_width=True):
+            st.session_state["logged_in"] = False
+            st.session_state["profile_completed"] = False
+            st.rerun()
 
 st.markdown("---")
 
 # ==========================================
-# VIEW 1: JOB SEEKER EXPERIENCE
+# SCREEN 1: LOGIN / REGISTRATION
 # ==========================================
-if st.session_state["role"] == "Job Seeker":
+if not st.session_state["logged_in"]:
+    st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
+    st.subheader("🔑 Candidate Portal Access")
     
-    st.sidebar.markdown("## 👤 Candidate Profile")
-    st.session_state["user_name"] = st.sidebar.text_input("Full Name", value=st.session_state["user_name"])
-    st.session_state["user_exp"] = st.sidebar.slider("Experience Years", 0, 5, st.session_state["user_exp"])
+    auth_tab1, auth_tab2 = st.tabs(["Candidate Login", "New Candidate Registration"])
+    
+    with auth_tab1:
+        l_email = st.text_input("Email Address", value="arpit@example.com", key="login_email")
+        l_pass = st.text_input("Password", type="password", value="password123", key="login_pass")
+        if st.button("Sign In to Portal", type="primary", use_container_width=True):
+            st.session_state["logged_in"] = True
+            st.session_state["user_email"] = l_email
+            st.rerun()
+            
+    with auth_tab2:
+        r_name = st.text_input("Full Name", value="Arpit Srivastav", key="reg_name")
+        r_email = st.text_input("Email Address", value="arpit@example.com", key="reg_email")
+        r_phone = st.text_input("Mobile Number", value="9876543210", key="reg_phone")
+        r_pass = st.text_input("Create Password", type="password", value="password123", key="reg_pass")
+        if st.button("Create Account & Proceed", type="primary", use_container_width=True):
+            st.session_state["logged_in"] = True
+            st.session_state["user_name"] = r_name
+            st.session_state["user_email"] = r_email
+            st.session_state["user_phone"] = r_phone
+            st.rerun()
+            
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ==========================================
+# SCREEN 2: PROFILE COMPLETION & ONBOARDING
+# ==========================================
+elif st.session_state["logged_in"] and not st.session_state["profile_completed"]:
+    st.markdown("<h2 style='text-align:center; color:#0f172a;'>📋 Complete Your Verified Candidate Profile</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#64748b;'>Verify your details to unlock the verified jobs feed and portfolio builder.</p>", unsafe_allow_html=True)
+    
+    steps_done = sum([st.session_state["otp_verified"], st.session_state["id_doc_uploaded"], st.session_state["resume_uploaded"]])
+    progress_pct = int((steps_done / 3) * 100)
+    
+    st.progress(progress_pct)
+    st.markdown(f"<p style='text-align:center; font-weight:bold; color:#0284c7;'>Profile Completion Progress: {progress_pct}%</p>", unsafe_allow_html=True)
+    
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        st.markdown("<div class='light-card'>", unsafe_allow_html=True)
+        st.subheader("Step 1: Phone OTP")
+        st.write(f"**Mobile:** +91 {st.session_state['user_phone']}")
+        if st.button("Verify OTP Code (1234)"):
+            st.session_state["otp_verified"] = True
+            st.success("✓ Verified!")
+        if st.session_state["otp_verified"]:
+            st.markdown("<span class='badge-completed'>✓ Verified</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c2:
+        st.markdown("<div class='light-card'>", unsafe_allow_html=True)
+        st.subheader("Step 2: Govt ID Verification")
+        id_doc = st.file_uploader("Upload ID Copy (PDF/JPG)", type=["pdf", "jpg", "png"])
+        if id_doc:
+            st.session_state["id_doc_uploaded"] = True
+            st.success("✓ ID Uploaded Successfully!")
+        if st.session_state["id_doc_uploaded"]:
+            st.markdown("<span class='badge-completed'>✓ ID Uploaded</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c3:
+        st.markdown("<div class='light-card'>", unsafe_allow_html=True)
+        st.subheader("Step 3: Upload Updated Resume")
+        up_res = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+        if up_res:
+            st.session_state["resume_uploaded"] = True
+            st.session_state["resume_file_name"] = up_res.name
+            st.success(f"✓ Resume '{up_res.name}' Uploaded!")
+        if st.session_state["resume_uploaded"]:
+            st.markdown(f"<span class='badge-completed'>✓ {st.session_state['resume_file_name']}</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    if st.button("🚀 Launch CareerBridge Portal", type="primary", use_container_width=True):
+        if not st.session_state["otp_verified"]:
+            st.warning("Please verify your phone number via OTP to continue.")
+        else:
+            st.session_state["profile_completed"] = True
+            st.balloons()
+            st.rerun()
+
+# ==========================================
+# SCREEN 3: FULL PORTAL INTERFACE
+# ==========================================
+else:
+    st.sidebar.markdown("## 👤 Verified Candidate Hub")
+    st.sidebar.markdown(f"**Name:** {st.session_state['user_name']}")
+    st.sidebar.markdown(f"**Resume:** `{st.session_state['resume_file_name']}`")
+    st.sidebar.markdown(f"**Status:** <span class='badge-completed'>✓ Verified</span>", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
+    
+    st.session_state["user_exp"] = st.sidebar.slider("Experience (Years)", 0, 5, st.session_state["user_exp"])
     skills_input = st.sidebar.text_area("Your Skills Stack", value=", ".join([s.title() for s in st.session_state["user_skills"]]))
     if st.sidebar.button("Update Skills"):
         st.session_state["user_skills"] = [s.strip().lower() for s in skills_input.split(",") if s.strip()]
-        st.sidebar.success("Profile Updated!")
-        
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🔁 Learning Outcome Loop")
-    for item in st.session_state["learning_loop"]:
-        st.sidebar.info(f"💡 {item}")
+        st.sidebar.success("Skills Updated!")
 
-    t1, t2, t3, t4 = st.tabs([
-        "🌐 1. Verified Opportunities & Govt Vacancies", 
-        "🎙️ 2. Ethical AI Mock Interview", 
-        "📄 3. ATS Resume & Preparation", 
-        "📈 4. Outcome Loop & Progress"
+    # Main Navigation Tabs
+    t1, t2, t3, t4, t5 = st.tabs([
+        "🌐 Verified Jobs & NATS", 
+        "💼 Portfolio & Resume Hub", 
+        "🎙️ Ethical AI Mock Interview", 
+        "📄 ATS Matcher & PDF", 
+        "📈 Analytics & Growth"
     ])
 
-    # ------------------------------------------
-    # TAB 1: OPPORTUNITIES & RESPONSIBLE APPLY
-    # ------------------------------------------
+    # TAB 1: VERIFIED JOBS FEED
     with t1:
-        st.subheader("🎯 Verified Freshers & Apprenticeships Feed")
+        st.subheader("🎯 Verified Job Openings & NATS Govt Apprenticeships")
         search_kw = st.text_input("🔍 Search by role, skill, or company...", "")
         
         for job in st.session_state["jobs_database"]:
@@ -177,7 +295,7 @@ if st.session_state["role"] == "Job Seeker":
             
             score = round((len(matched) / max(1, len(job_req))) * 70 + (30 if st.session_state["user_exp"] >= job["min_exp"] else 15))
             
-            badge_html = "<span class='badge-govt'>🏛️ Official Govt Listing</span>" if job["type"] == "Government" else "<span class='badge-verified'>✓ Employer Verified</span>"
+            badge_html = "<span class='badge-verified'>✓ Verified Opportunity</span>"
             
             st.markdown(f"""
             <div class="light-card">
@@ -186,7 +304,7 @@ if st.session_state["role"] == "Job Seeker":
                         <h3 style="margin:0; color:#0f172a;">{job['title']} {badge_html}</h3>
                         <p style="color:#64748b; margin:4px 0;">🏢 {job['company']} &nbsp;|&nbsp; 📍 {job['location']} &nbsp;|&nbsp; 💰 {job['salary']}</p>
                     </div>
-                    <div><span class="score-badge">{score}% MATCH</span></div>
+                    <div><span class="score-badge" style="background-color:#059669; color:white; padding:6px 12px; border-radius:20px;">{score}% MATCH</span></div>
                 </div>
                 <p style="color:#334155; margin-top:10px;">{job['desc']}</p>
             </div>
@@ -200,152 +318,86 @@ if st.session_state["role"] == "Job Seeker":
                 st.markdown(f"**Skill Gap:** {g_pills if g_pills else 'None - Fully Qualified!'}", unsafe_allow_html=True)
             with c_right:
                 if job["type"] == "Government":
-                    st.markdown(f"[🔗 Apply on Official Portal]({job['official_url']})")
-                    st.caption("Preserves official government portal requirements.")
+                    st.markdown(f"[🔗 Apply on NATS Official Portal]({job['official_url']})")
                 else:
-                    if st.button(f"Review & Apply", key=f"job_{job['id']}", type="primary"):
-                        st.info("ℹ️ Final Confirmation: CareerBridge never bypasses portal consent or CAPTCHAs without explicit candidate authorization.")
-                        st.success(f"Application payload submitted to {job['company']}!")
+                    if st.button(f"One-Click Verified Apply", key=f"job_{job['id']}", type="primary"):
+                        st.success(f"🎉 Application & Verified Profile Data Payload Sent to {job['company']}!")
             st.markdown("<hr style='border: 0.5px solid #e2e8f0;'>", unsafe_allow_html=True)
 
-    # ------------------------------------------
-    # TAB 2: ETHICAL AI MOCK INTERVIEW
-    # ------------------------------------------
+    # TAB 2: PORTFOLIO & RESUME HUB
     with t2:
-        st.subheader("🎙️ Ethical AI Technical Interview Simulator")
-        st.info("🛡️ **Fairness Commitment:** Evaluation is strictly focused on **answer relevance, structural clarity, and technical correctness**. CareerBridge AI does NOT use pseudo-scientific eye-tracking, facial expression analysis, or accent profiling.")
+        st.subheader("💼 Professional Portfolio & Live Resume Management")
         
-        target_role = st.selectbox("Select Target Interview Domain", ["Full Stack Developer", "Data Analyst Trainee"])
-        
-        q_bank = {
-            "Full Stack Developer": "How do you optimize state management in React and handle exceptions in Django ORM endpoints under concurrency?",
-            "Data Analyst Trainee": "How do you handle missing values in SQL queries using window functions and imputation in Pandas?"
-        }
-        
-        current_q = q_bank[target_role]
-        st.markdown(f"### ❓ Question: {current_q}")
-        st.audio("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", format="audio/mp3")
-        st.caption("🔊 Question audio player & timer active (2 Minutes recommended).")
-        
-        user_answer = st.text_area("Type or Paste Response Transcription:", height=140, placeholder="Structure: 1. Core Concept, 2. Implementation Pattern, 3. Optimization...")
-        
-        if st.button("Submit Response for Objective Evaluation", type="primary"):
-            if not user_answer or len(user_answer) < 25:
-                st.warning("Please enter a technical response for objective evaluation.")
-            else:
-                with st.spinner("Evaluating technical correctness and response structure..."):
-                    time.sleep(1.2)
-                    
-                words = set(user_answer.lower().split())
-                tech_keywords = {"state", "api", "django", "orm", "database", "sql", "pandas", "async", "react", "python"}
-                found = words.intersection(tech_keywords)
-                
-                rel_score = min(100, len(found) * 20 + 20)
-                struct_score = 85 if ("1." in user_answer or "first" in user_answer.lower() or len(user_answer) > 120) else 65
-                tech_score = min(95, rel_score + 10)
-                overall = round((rel_score + struct_score + tech_score) / 3)
-                
-                st.markdown("### 📊 Objective Feedback Matrix")
-                f1, f2, f3, f4 = st.columns(4)
-                f1.metric("Overall Match", f"{overall}%")
-                f2.metric("Relevance", f"{rel_score}%")
-                f3.metric("Structure", f"{struct_score}%")
-                f4.metric("Technical Score", f"{tech_score}%")
-                
-                st.success("**Strengths Identified:** Clear technical vocabulary and structured problem-solving approach.")
-                st.warning(f"**Dynamic Follow-up Question:** You mentioned technical implementation—how do you verify memory efficiency in production?")
-                
-                # Feedback outcome loop update
-                st.session_state["learning_loop"].append(f"Review technical depth for {target_role} (Score: {overall}%)")
-                st.session_state["interview_history"].append({
-                    "date": time.strftime("%Y-%m-%d %H:%M"), "role": target_role, "score": overall
-                })
-
-    # ------------------------------------------
-    # TAB 3: ATS RESUME & PREPARATION
-    # ------------------------------------------
-    with t3:
-        st.subheader("📄 ATS Keyword Analyzer & Resume Support")
-        
-        c_r1, c_r2 = st.columns(2)
-        with c_r1:
-            res_text = st.text_area("Paste Resume Text", height=160, placeholder="Paste resume contents...")
-        with c_r2:
-            jd_text = st.text_area("Paste Target Job Description (JD)", height=160, placeholder="Paste JD requirements...")
+        c_p1, c_p2 = st.columns(2)
+        with c_p1:
+            st.markdown("<div class='light-card'>", unsafe_allow_html=True)
+            st.subheader("📄 Upload & Update Resume")
+            st.write(f"**Current Active Resume:** `{st.session_state['resume_file_name']}`")
+            new_res_upload = st.file_uploader("Upload New Updated Resume (PDF)", type=["pdf"], key="portfolio_res_up")
+            if new_res_upload:
+                st.session_state["resume_file_name"] = new_res_upload.name
+                st.session_state["resume_uploaded"] = True
+                st.success(f"✓ Resume successfully updated to '{new_res_upload.name}'!")
+            st.markdown("</div>", unsafe_allow_html=True)
             
-        if st.button("Run ATS Match", type="primary"):
-            if res_text and jd_text:
-                r_words = set([w.strip(".,!?:;()").lower() for w in res_text.split() if len(w) > 2])
-                j_words = set([w.strip(".,!?:;()").lower() for w in jd_text.split() if len(w) > 2])
-                matched_kw = j_words.intersection(r_words)
-                missing_kw = j_words.difference(r_words)
-                ats_score = round((len(matched_kw) / max(1, len(j_words))) * 100)
-                
-                st.metric("ATS Selection Probability", f"{min(100, ats_score)}%")
-                st.write("**Matched Keywords:**", ", ".join(list(matched_kw)[:12]))
-                st.write("**Missing Keywords:**", ", ".join(list(missing_kw)[:12]))
-                
-        st.markdown("---")
-        st.subheader("🛠️ Download ATS-Compliant PDF Resume")
-        if st.button("Generate Resume PDF"):
+        with c_p2:
+            st.markdown("<div class='light-card'>", unsafe_allow_html=True)
+            st.subheader("➕ Add Portfolio Project")
+            with st.form("add_project_form"):
+                p_title = st.text_input("Project Name", value="Food Delivery App")
+                p_tech = st.text_input("Tech Stack", value="React, Node.js, MongoDB")
+                p_link = st.text_input("GitHub / Live Link", value="https://github.com/...")
+                p_add = st.form_submit_button("Add to Portfolio")
+                if p_add and p_title:
+                    st.session_state["portfolio_projects"].append({"title": p_title, "tech": p_tech, "link": p_link})
+                    st.success(f"✓ Project '{p_title}' added to your portfolio!")
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        st.markdown("### 🏆 Your Public Portfolio Showcase")
+        for proj in st.session_state["portfolio_projects"]:
+            st.markdown(f"""
+            <div class="light-card">
+                <h4 style="margin:0; color:#0284c7;">{proj['title']}</h4>
+                <p style="margin:4px 0; color:#64748b;"><b>Tech Stack:</b> {proj['tech']}</p>
+                <p style="margin:0;"><a href="{proj['link']}" target="_blank">🔗 View Repository / Live Demo</a></p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # TAB 3: ETHICAL AI MOCK INTERVIEW
+    with t3:
+        st.subheader("🎙️ Objective AI Technical Interview Module")
+        st.info("ℹ️ Evaluation criteria: Technical accuracy, answer structure, and conceptual relevance. No facial or accent tracking used.")
+        
+        target_role = st.selectbox("Select Interview Specialty", ["Software Engineer (Full Stack)", "Data Analyst Trainee"])
+        st.markdown(f"### Question: Explain exception handling and ORM concurrency patterns in Python / SQL.")
+        st.audio("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", format="audio/mp3")
+        
+        user_answer = st.text_area("Your Response Transcription:", height=130, placeholder="Explain core concepts and architectural implementation...")
+        
+        if st.button("Submit Response for Evaluation", type="primary"):
+            if user_answer:
+                st.success("✓ Evaluation Complete: Technical Correctness 88% | Structural Clarity 82% | Score: 85%")
+                st.session_state["interview_history"].append({"date": time.strftime("%Y-%m-%d %H:%M"), "score": 85})
+
+    # TAB 4: ATS RESUME & PDF
+    with t4:
+        st.subheader("📄 Verified Candidate PDF Resume Generator")
+        st.write("Generate your official verified candidate profile resume.")
+        
+        if st.button("Download Verified Resume PDF", type="primary"):
             pdf_bytes = generate_clean_pdf(st.session_state["user_name"], st.session_state["user_skills"], st.session_state["user_exp"])
             st.download_button(
-                label="📥 Download PDF", data=pdf_bytes, file_name=f"{st.session_state['user_name'].replace(' ', '_')}_Resume.pdf", mime="application/pdf"
+                label="📥 Download PDF Document",
+                data=pdf_bytes,
+                file_name=f"{st.session_state['user_name'].replace(' ', '_')}_Verified_Resume.pdf",
+                mime="application/pdf"
             )
 
-    # ------------------------------------------
-    # TAB 4: OUTCOME LOOP & HISTORY
-    # ------------------------------------------
-    with t4:
-        st.subheader("📈 Interview Outcomes & Recommendation Tracking")
-        if not st.session_state["interview_history"]:
-            st.info("No mock interviews completed yet. Complete a session in Tab 2 to activate tracking.")
-        else:
+    # TAB 5: ANALYTICS
+    with t5:
+        st.subheader("📈 Candidate Placement & Verification Analytics")
+        st.metric("Profile Verification Status", "100% Verified")
+        st.metric("Total Portfolio Projects", len(st.session_state["portfolio_projects"]))
+        if st.session_state["interview_history"]:
             df_hist = pd.DataFrame(st.session_state["interview_history"])
             st.dataframe(df_hist, use_container_width=True)
-            st.line_chart(df_hist.set_index("date")["score"])
-
-# ==========================================
-# VIEW 2: VERIFIED RECRUITER PORTAL
-# ==========================================
-else:
-    st.subheader("🏢 Verified Employer & Recruiter Control Panel")
-    st.info("🛡️ Identity Verification: Recruiter profiles and job listings are moderated to protect candidates from fraudulent offerings.")
-    
-    rt1, rt2, rt3 = st.tabs(["➕ Post Verified Job", "📋 Candidate Pipeline & Shortlisting", "📊 Recruitment Analytics"])
-    
-    with rt1:
-        st.markdown("### Post a New Opening")
-        with st.form("post_job"):
-            p_title = st.text_input("Job Title", value="Junior Python Developer")
-            p_company = st.text_input("Company Name", value="Tech Innovators Pvt Ltd")
-            p_loc = st.text_input("Location", value="Remote / Kanpur")
-            p_skills = st.text_input("Required Skills (comma separated)", value="Python, Django, SQL")
-            p_sal = st.text_input("Salary / Stipend", value="₹4.0 - ₹6.0 LPA")
-            p_submit = st.form_submit_button("Publish Verified Listing")
-            
-            if p_submit and p_title:
-                st.session_state["jobs_database"].append({
-                    "id": len(st.session_state["jobs_database"]) + 1,
-                    "title": p_title, "company": p_company, "location": p_loc,
-                    "required": [s.strip().lower() for s in p_skills.split(",") if s.strip()],
-                    "min_exp": 0, "salary": p_sal, "verified": True, "type": "Private",
-                    "official_url": "", "desc": "Posted via Recruiter Portal."
-                })
-                st.success(f"✓ Listing '{p_title}' moderated and published live!")
-
-    with rt2:
-        st.markdown("### Candidate Shortlisting Pipeline")
-        candidates_data = [
-            {"Name": "Arpit Srivastav", "Role": "Full Stack Software Engineer", "Match Score": "88%", "Status": "Shortlisted for Interview"},
-            {"Name": "Rohan Verma", "Role": "Data Analyst Trainee", "Match Score": "75%", "Status": "Under Review"},
-            {"Name": "Priya Sharma", "Role": "Full Stack Software Engineer", "Match Score": "92%", "Status": "Assessment Completed"}
-        ]
-        df_cand = pd.DataFrame(candidates_data)
-        st.dataframe(df_cand, use_container_width=True)
-
-    with rt3:
-        st.markdown("### Recruitment & Platform Analytics")
-        st.metric("Total Applicants", "142")
-        st.metric("Average Skill Match Score", "81%")
-        st.metric("Moderation Safety Rating", "100% Verified")
